@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Sound → GRAB</title>
+<style>
+:root{
+  --bg:#07090f;--s1:#0d1220;--s2:#111827;
+  --b:rgba(255,255,255,.07);--b2:rgba(255,255,255,.13);
+  --t:#e8edf5;--m:rgba(180,196,220,.55);--m2:rgba(180,196,220,.35);
+  --a:#3dfcbe;--a2:#a87bff;--a3:#ffc060;
+  --err:#ff4d6a;--ok:#3dfcbe;--warn:#ffc060;
+  --mono:'Courier New',monospace;--sans:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  --rad:11px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--t);font-family:var(--sans);min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(61,252,190,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(61,252,190,.018) 1px,transparent 1px);
+  background-size:52px 52px}
+
+header{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:16px 26px 14px;border-bottom:1px solid var(--b);background:rgba(7,9,15,.9);backdrop-filter:blur(8px)}
+.hdr-title{font-family:var(--mono);font-size:20px;font-weight:700;background:linear-gradient(100deg,var(--a) 30%,var(--a2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hdr-sub{font-family:var(--mono);font-size:11px;color:var(--m);margin-top:2px}
+.badge{padding:3px 9px;border-radius:5px;font-size:10px;font-weight:700;font-family:var(--mono);letter-spacing:.05em;border:1px solid}
+.bg{border-color:rgba(61,252,190,.3);background:rgba(61,252,190,.07);color:var(--a)}
+.bp{border-color:rgba(168,123,255,.3);background:rgba(168,123,255,.07);color:var(--a2)}
+.bo{border-color:rgba(255,192,96,.3);background:rgba(255,192,96,.07);color:var(--a3)}
+
+main{position:relative;z-index:1;flex:1;display:grid;grid-template-columns:420px 1fr;min-height:0}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.panel{padding:18px 20px;display:flex;flex-direction:column;gap:13px;overflow-y:auto}
+.panel-left{border-right:1px solid var(--b);max-height:calc(100vh - 64px)}
+.panel-right{max-height:calc(100vh - 64px)}
+
+.lbl{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--m);font-weight:600;text-transform:uppercase}
+
+/* Drop zone */
+.drop{border:2px dashed var(--b2);border-radius:var(--rad);padding:26px 16px;text-align:center;cursor:pointer;transition:all .15s;background:rgba(255,255,255,.015)}
+.drop:hover,.drop.over{border-color:rgba(61,252,190,.4);background:rgba(61,252,190,.04)}
+.drop-icon{font-size:28px;margin-bottom:6px}
+.drop-txt{font-size:12px;color:var(--m);line-height:1.6}
+.drop-txt b{color:var(--t)}
+
+/* Waveform panel */
+.wave-panel{background:var(--s1);border:1px solid var(--b);border-radius:var(--rad);overflow:hidden}
+.wave-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-bottom:1px solid var(--b);background:rgba(255,255,255,.015);flex-wrap:wrap;gap:6px}
+.wave-title{font-family:var(--mono);font-size:10px;color:var(--m);letter-spacing:.05em}
+.wave-meta{font-family:var(--mono);font-size:10px;color:var(--a)}
+#waveCanvas{display:block;width:100%}
+.wave-controls{display:flex;gap:6px;padding:8px 10px;border-top:1px solid var(--b)}
+
+/* Buttons */
+.btn{padding:9px 14px;border-radius:9px;font-size:12px;font-weight:700;font-family:var(--mono);border:none;cursor:pointer;transition:all .15s}
+.btn-p{background:rgba(61,252,190,.12);border:1px solid rgba(61,252,190,.3);color:var(--a)}
+.btn-p:hover{background:rgba(61,252,190,.2)}
+.btn-dl{background:var(--a);border:1px solid var(--a);color:#03100b}
+.btn-dl:hover{background:#5ffece}
+.btn-s{background:rgba(255,255,255,.04);border:1px solid var(--b);color:var(--m)}
+.btn-s:hover{color:var(--t);border-color:var(--b2)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-row{display:flex;gap:7px;flex-wrap:wrap}
+.btn-row .btn{flex:1;min-width:80px}
+
+/* Fields */
+.field label{display:block;font-family:var(--mono);font-size:10px;color:var(--m);letter-spacing:.04em;margin-bottom:5px}
+.field input[type=text],.field input[type=number],.field select{
+  width:100%;background:var(--s2);border:1px solid var(--b);border-radius:8px;padding:8px 10px;
+  font-size:12px;font-family:var(--mono);color:var(--t);outline:none;transition:border-color .15s}
+.field input:focus,.field select:focus{border-color:rgba(61,252,190,.35)}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+
+/* Collapsible sections */
+.exp-hdr{display:flex;align-items:center;gap:8px;cursor:pointer;padding:9px 12px;border-radius:9px;border:1px solid var(--b);background:rgba(255,255,255,.02);transition:background .15s;user-select:none}
+.exp-hdr:hover{background:rgba(255,255,255,.04)}
+.exp-hdr .exp-icon{margin-left:auto;font-size:12px;color:var(--m);transition:transform .2s}
+.exp-hdr.open .exp-icon{transform:rotate(180deg)}
+.exp-title{font-size:12px;font-weight:700}
+.exp-body{display:none;margin-top:8px;flex-direction:column;gap:9px;padding:12px;border-radius:9px;border:1px solid var(--b);background:rgba(255,255,255,.012)}
+.exp-body.open{display:flex}
+
+/* Duration cap */
+.cap-row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.cap-row input[type=number]{width:80px}
+.check-row{display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer}
+.check-row input{width:15px;height:15px;accent-color:var(--a3);cursor:pointer;flex-shrink:0}
+.cap-warn{font-family:var(--mono);font-size:10px;color:var(--warn);padding:8px 10px;border-radius:8px;border:1px solid rgba(255,192,96,.25);background:rgba(255,192,96,.05);line-height:1.6;display:none}
+
+/* Tips */
+.tips{padding:10px 13px;border-radius:9px;background:rgba(168,123,255,.05);border:1px solid rgba(168,123,255,.15);font-size:11px;color:var(--m);line-height:1.75}
+.tips b{color:var(--a2)}
+
+/* Status */
+.status{font-family:var(--mono);font-size:11px;color:var(--m);line-height:1.6;padding:8px 11px;border-radius:8px;border:1px solid var(--b)}
+.status.ok{color:var(--ok);border-color:rgba(61,252,190,.2);background:rgba(61,252,190,.04)}
+.status.err{color:var(--err);border-color:rgba(255,77,106,.2);background:rgba(255,77,106,.04)}
+.status.load{color:var(--a3);border-color:rgba(255,192,96,.2);background:rgba(255,192,96,.04)}
+
+/* Progress bar */
+.prog-wrap{height:6px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden;display:none}
+.prog-bar{height:100%;background:var(--a);width:0%;transition:width .2s}
+
+/* ══ RIGHT PANEL: parameter grid ══ */
+.param-section{display:flex;flex-direction:column;gap:8px}
+.param-section-hdr{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--a2);text-transform:uppercase;padding-top:4px}
+.param-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pfield{background:var(--s1);border:1px solid var(--b);border-radius:8px;padding:8px 10px}
+.pfield label{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--m);margin-bottom:4px;letter-spacing:.02em}
+.pfield label .unit{color:var(--m2)}
+.pfield input,.pfield select{width:100%;background:transparent;border:none;padding:0;font-size:13px;font-family:var(--mono);color:var(--a);outline:none}
+.pfield.wide{grid-column:1/-1}
+
+.empty-hint{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:12px;text-align:center;padding:32px;color:var(--m)}
+.empty-glyph{font-size:46px;background:linear-gradient(135deg,var(--a),var(--a2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+/* Voices table (additive resynthesis) */
+.voices-panel{background:var(--s1);border:1px solid var(--b);border-radius:var(--rad);overflow:hidden}
+.voices-hdr{padding:9px 12px;border-bottom:1px solid var(--b);background:rgba(168,123,255,.04);font-family:var(--mono);font-size:10px;color:var(--a2);letter-spacing:.06em;font-weight:700}
+.voices-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:10.5px}
+.voices-table th{text-align:left;padding:6px 8px;color:var(--m);font-weight:600;font-size:9px;letter-spacing:.03em;border-bottom:1px solid var(--b)}
+.voices-table td{padding:4px 8px;border-bottom:1px solid rgba(255,255,255,.03)}
+.voices-table tr:last-child td{border-bottom:none}
+.voices-table input,.voices-table select{width:100%;background:transparent;border:1px solid transparent;border-radius:5px;padding:3px 4px;font-size:10.5px;font-family:var(--mono);color:var(--a);outline:none}
+.voices-table input:focus,.voices-table select:focus{border-color:rgba(61,252,190,.3);background:var(--s2)}
+.voice-solo-btn{background:rgba(255,255,255,.04);border:1px solid var(--b);border-radius:5px;color:var(--m);cursor:pointer;font-size:10px;padding:3px 7px}
+.voice-solo-btn:hover{color:var(--a);border-color:rgba(61,252,190,.3)}
+.voice-role-primary{color:var(--a);font-weight:700}
+.voice-role-partial{color:var(--a2)}
+
+/* JSON viewer */
+.json-viewer{width:100%;min-height:220px;max-height:360px;background:var(--s1);border:1px solid var(--b);border-radius:var(--rad);
+  padding:13px 14px;font-family:var(--mono);font-size:10.5px;line-height:1.7;color:rgba(232,237,245,.85);resize:vertical;outline:none}
+.json-viewer:focus{border-color:rgba(61,252,190,.3)}
+
+footer{position:relative;z-index:1;padding:10px 24px;border-top:1px solid var(--b);font-family:var(--mono);font-size:10px;color:var(--m);
+  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+footer a{color:var(--a);text-decoration:none}
+footer a:hover{text-decoration:underline}
+
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+input,select,button,textarea{font-family:inherit}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="hdr-title">SOUND → GRAB</div>
+    <div class="hdr-sub">Import any audio file — get back real GRAB sound-block parameters</div>
+  </div>
+  <div style="display:flex;gap:6px;flex-wrap:wrap">
+    <span class="badge bg">Format v17</span>
+    <span class="badge bp">Client-side DSP</span>
+    <span class="badge bo">GRAB VR</span>
+  </div>
+</header>
+
+<main>
+<!-- LEFT -->
+<div class="panel panel-left">
+
+  <div class="lbl">import audio</div>
+  <div class="drop" id="dropZone">
+    <div class="drop-icon">🎧</div>
+    <div class="drop-txt"><b>Drop an audio file</b> or click to browse<br>.mp3 .wav .ogg .m4a .flac — anything your browser can decode</div>
+    <input type="file" id="fileInput" accept="audio/*" style="display:none"/>
+  </div>
+
+  <div class="wave-panel" id="wavePanel" style="display:none">
+    <div class="wave-hdr">
+      <span class="wave-title">WAVEFORM · <span id="fileNameLbl">—</span></span>
+      <span class="wave-meta" id="waveMeta"></span>
+    </div>
+    <canvas id="waveCanvas" height="90"></canvas>
+    <div class="wave-controls">
+      <button class="btn btn-s" id="playOrigBtn" style="flex:1">▶ Play Original</button>
+      <button class="btn btn-s" id="stopOrigBtn" style="flex:1" disabled>■ Stop</button>
+    </div>
+  </div>
+
+  <div id="trimPanel" style="display:none">
+    <div class="lbl" style="margin-bottom:7px">trim to the important part <span style="text-transform:none;color:var(--m2);font-weight:400">(recommended — silence/room-tone at the edges skews every timing value)</span></div>
+    <div class="r2">
+      <div class="field"><label>Trim start (sec)</label><input type="number" id="trimStart" value="0" min="0" step="0.01"/></div>
+      <div class="field"><label>Trim end (sec)</label><input type="number" id="trimEnd" value="0" min="0" step="0.01"/></div>
+    </div>
+    <button class="btn btn-s" id="autoTrimBtn" style="width:100%;margin-top:8px">✂ Auto-Trim Silence</button>
+  </div>
+
+  <div id="confidencePanel" style="display:none" class="status"></div>
+
+  <div class="cap-row">
+    <div class="field" style="flex:1;min-width:140px"><label>Analyze first N seconds</label>
+      <input type="number" id="capSeconds" value="8" min="0.5" max="120" step="0.5"/></div>
+    <label class="check-row" style="margin-top:18px">
+      <input type="checkbox" id="forceFullLength"/> Force full length (bypass cap)
+    </label>
+  </div>
+  <div class="cap-warn" id="capWarn"></div>
+
+  <div class="exp-hdr" id="advHdr" tabindex="0">
+    <span style="font-size:14px">🎛</span><span class="exp-title">Advanced Analysis Settings</span><span class="exp-icon">▼</span>
+  </div>
+  <div class="exp-body" id="advBody">
+    <div class="r2">
+      <div class="field"><label>Min pitch search (Hz)</label><input type="number" id="minFreq" value="70" min="20" max="500" step="5"/></div>
+      <div class="field"><label>Max pitch search (Hz)</label><input type="number" id="maxFreq" value="1400" min="200" max="8000" step="10"/></div>
+    </div>
+    <div style="font-size:10px;color:var(--m);line-height:1.6">Narrow this range if pitch detection picks the wrong octave. Wider range = slower analysis.</div>
+  </div>
+
+  <div class="lbl">resynthesis mode</div>
+  <div class="r2">
+    <div class="field"><label>Voice Count</label>
+      <select id="voiceCount">
+        <option value="1">1 · Single oscillator (classic)</option>
+        <option value="3">3 · Light additive</option>
+        <option value="6" selected>6 · Full additive resynthesis</option>
+        <option value="10">10 · Maximum richness</option>
+        <option value="16">16 · Extreme (slower)</option>
+      </select></div>
+    <div class="field"><label>&nbsp;</label>
+      <div style="font-size:10px;color:var(--m);line-height:1.5;padding-top:6px">More voices = multiple GRAB sound blocks triggered together, each tracking its own frequency partial — much closer to complex/layered sounds than one oscillator alone.</div>
+    </div>
+  </div>
+
+  <div class="lbl">level metadata</div>
+  <div class="field"><label>Level Title</label><input type="text" id="lvlTitle" placeholder="filename.mp3 By Bananamaster6"/></div>
+  <div class="r2">
+    <div class="field"><label>Creator</label><input type="text" id="lvlCreator" value="Bananamaster6"/></div>
+    <div class="field"><label>Description</label><input type="text" id="lvlDesc" value="audio converted to grab sound settings"/></div>
+  </div>
+
+  <button class="btn btn-p" id="analyzeBtn" disabled style="padding:13px;font-size:13px">⚡ Analyze Audio</button>
+  <div class="prog-wrap" id="progWrap"><div class="prog-bar" id="progBar"></div></div>
+  <div class="status" id="statusEl">Load an audio file to begin.</div>
+
+  <div class="tips">
+    <b>What this tool can and can't do:</b> GRAB's sound block is a single-oscillator retro synth — one waveform, one pitch, one envelope (same model as sfxr/bfxr). It's built for short blips, lasers, jumps, and coin-style effects. It <b>cannot</b> reproduce music, voice, or layered/textured audio — no amount of analysis makes one oscillator sound like a full recording. For best results, feed it short, punchy, mostly single-toned sounds, and trim away any silence or noise at the edges first.
+  </div>
+</div>
+
+<!-- RIGHT -->
+<div class="panel panel-right" id="rightPanel">
+
+  <div class="empty-hint" id="emptyHint">
+    <div class="empty-glyph">◈</div>
+    <div style="font-size:14px;font-weight:700;color:rgba(232,237,245,.6)">Extracted parameters appear here</div>
+    <div style="font-size:12px;max-width:32ch;line-height:1.7">Import a sound and press Analyze. Every GRAB sound parameter becomes an editable field you can preview and tweak before export.</div>
+  </div>
+
+  <div id="resultsWrap" style="display:none;flex-direction:column;gap:14px">
+
+    <div class="btn-row">
+      <button class="btn btn-p" id="previewBtn">🔊 Preview Synthesized Sound</button>
+      <button class="btn btn-s" id="stopPreviewBtn" disabled>■ Stop</button>
+    </div>
+
+    <div class="voices-panel" id="voicesPanel" style="display:none">
+      <div class="voices-hdr">🎹 ADDITIVE VOICES <span style="color:var(--m);font-weight:400">— voice 1 is controlled by the parameter fields below; these are the extra simultaneous partials</span></div>
+      <table class="voices-table">
+        <thead><tr><th></th><th>Role</th><th>Note</th><th>Freq (Hz)</th><th>Volume</th><th>Attack</th><th>Sustain</th><th>Release</th><th>Wave</th></tr></thead>
+        <tbody id="voicesTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="param-section">
+      <div class="param-section-hdr">Core</div>
+      <div class="param-grid">
+        <div class="pfield"><label>volume <span class="unit">0–1</span></label><input type="number" id="p_volume" step="0.01" min="0" max="1"/></div>
+        <div class="pfield"><label>waveType</label>
+          <select id="p_waveType"><option value="0">0 · Sine</option><option value="1">1 · Square</option><option value="2">2 · Triangle</option><option value="3">3 · Sawtooth</option></select></div>
+      </div>
+    </div>
+
+    <div class="param-section">
+      <div class="param-section-hdr">Amplitude Envelope</div>
+      <div class="param-grid">
+        <div class="pfield"><label>envelopeAttack <span class="unit">sec</span></label><input type="number" id="p_envelopeAttack" step="0.001" min="0"/></div>
+        <div class="pfield"><label>envelopeSustain <span class="unit">sec</span></label><input type="number" id="p_envelopeSustain" step="0.001" min="0"/></div>
+        <div class="pfield"><label>envelopeRelease <span class="unit">sec</span></label><input type="number" id="p_envelopeRelease" step="0.001" min="0"/></div>
+        <div class="pfield"><label>envelopePunch <span class="unit">0–1</span></label><input type="number" id="p_envelopePunch" step="0.01" min="0" max="1"/></div>
+      </div>
+    </div>
+
+    <div class="param-section">
+      <div class="param-section-hdr">Frequency / Pitch</div>
+      <div class="param-grid">
+        <div class="pfield"><label>frequencyBase <span class="unit">Hz</span></label><input type="number" id="p_frequencyBase" step="1" min="1"/></div>
+        <div class="pfield"><label>frequencyLimit <span class="unit">Hz</span></label><input type="number" id="p_frequencyLimit" step="1" min="0"/></div>
+        <div class="pfield"><label>frequencyRamp <span class="unit">Hz/s</span></label><input type="number" id="p_frequencyRamp" step="1"/></div>
+        <div class="pfield"><label>frequencyDeltaRamp <span class="unit">Hz/s²</span></label><input type="number" id="p_frequencyDeltaRamp" step="1"/></div>
+      </div>
+    </div>
+
+    <div class="param-section">
+      <div class="param-section-hdr">Vibrato &amp; Pitch Jump</div>
+      <div class="param-grid">
+        <div class="pfield"><label>vibratoStrength <span class="unit">0–1</span></label><input type="number" id="p_vibratoStrength" step="0.01" min="0" max="1"/></div>
+        <div class="pfield"><label>vibratoSpeed <span class="unit">Hz</span></label><input type="number" id="p_vibratoSpeed" step="0.1" min="0"/></div>
+        <div class="pfield"><label>pitchJumpMod <span class="unit">-1–1</span></label><input type="number" id="p_pitchJumpMod" step="0.01" min="-1" max="1"/></div>
+        <div class="pfield"><label>pitchJumpSpeed <span class="unit">0–1</span></label><input type="number" id="p_pitchJumpSpeed" step="0.01" min="0" max="1"/></div>
+      </div>
+    </div>
+
+    <div class="param-section">
+      <div class="param-section-hdr">Duty Cycle &amp; Repeat</div>
+      <div class="param-grid">
+        <div class="pfield"><label>dutyCycle <span class="unit">0–1</span></label><input type="number" id="p_dutyCycle" step="0.01" min="0" max="1"/></div>
+        <div class="pfield"><label>dutyCycleRamp <span class="unit">-1–1</span></label><input type="number" id="p_dutyCycleRamp" step="0.01" min="-1" max="1"/></div>
+        <div class="pfield wide"><label>repeatSpeed <span class="unit">0–1</span></label><input type="number" id="p_repeatSpeed" step="0.01" min="0" max="1"/></div>
+      </div>
+    </div>
+
+    <div class="param-section">
+      <div class="param-section-hdr">Filters</div>
+      <div class="param-grid">
+        <div class="pfield"><label>lowPassFilterFrequency <span class="unit">Hz</span></label><input type="number" id="p_lowPassFilterFrequency" step="10" min="0"/></div>
+        <div class="pfield"><label>highPassFilterFrequency <span class="unit">Hz</span></label><input type="number" id="p_highPassFilterFrequency" step="10" min="0"/></div>
+      </div>
+    </div>
+
+    <div class="param-section">
+      <div class="param-section-hdr">Flanger &amp; Reverb</div>
+      <div class="param-grid">
+        <div class="pfield"><label>flangerFrequency <span class="unit">Hz</span></label><input type="number" id="p_flangerFrequency" step="0.1" min="0"/></div>
+        <div class="pfield"><label>flangerDepth <span class="unit">0–1</span></label><input type="number" id="p_flangerDepth" step="0.01" min="0" max="1"/></div>
+        <div class="pfield"><label>reverbDelay <span class="unit">0–0.5s</span></label><input type="number" id="p_reverbDelay" step="0.005" min="0" max="0.5"/></div>
+        <div class="pfield"><label>reverbDecayFactor <span class="unit">0–0.99</span></label><input type="number" id="p_reverbDecayFactor" step="0.01" min="0" max="0.99"/></div>
+      </div>
+    </div>
+
+    <button class="btn btn-p" id="rebuildBtn" style="padding:11px">🔄 Rebuild Level JSON from fields above</button>
+
+    <div class="btn-row">
+      <button class="btn btn-p" id="dlJsonBtn" disabled>⬇ .json</button>
+      <button class="btn btn-dl" id="dlLevelBtn" disabled>⬇ .level</button>
+      <button class="btn btn-s" id="copyBtn" disabled>⎘ Copy</button>
+    </div>
+
+    <div class="lbl">level json <span style="text-transform:none;color:var(--a2);font-weight:400">— fully editable, this is your bypass layer</span></div>
+    <textarea class="json-viewer" id="jsonBox" spellcheck="false"></textarea>
+  </div>
+
+</div>
+</main>
+
+<footer>
+  <span>Sound → GRAB · Client-side audio-to-synth analyzer · GRAB format v17</span>
+  <span><a href="https://grab-tools.live/editor" target="_blank">Grab Tools Editor</a> · <a href="https://wiki.grab-tools.live" target="_blank">GRAB Wiki</a></span>
+</footer>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════
+//  UTILITIES
+// ═══════════════════════════════════════════════
+const sleep0 = () => new Promise(r => setTimeout(r, 0));
+const clamp = (v, min, max) => { if (!isFinite(v)) v = 0; return Math.max(min, Math.min(max, v)); };
+function nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
+
+// ═══════════════════════════════════════════════
+//  FFT (iterative radix-2 Cooley-Tukey, in-place)
+// ═══════════════════════════════════════════════
+function fftInPlace(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) { let tr = re[i]; re[i] = re[j]; re[j] = tr; let ti = im[i]; im[i] = im[j]; im[j] = ti; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len;
+    const wr0 = Math.cos(ang), wi0 = Math.sin(ang);
+    for (let i = 0; i < n; i += len) {
+      let curWr = 1, curWi = 0;
+      for (let j = 0; j < len / 2; j++) {
+        const uRe = re[i + j], uIm = im[i + j];
+        const vRe = re[i + j + len / 2] * curWr - im[i + j + len / 2] * curWi;
+        const vIm = re[i + j + len / 2] * curWi + im[i + j + len / 2] * curWr;
+        re[i + j] = uRe + vRe; im[i + j] = uIm + vIm;
+        re[i + j + len / 2] = uRe - vRe; im[i + j + len / 2] = uIm - vIm;
+        const nWr = curWr * wr0 - curWi * wi0;
+        const nWi = curWr * wi0 + curWi * wr0;
+        curWr = nWr; curWi = nWi;
+      }
+    }
+  }
+}
+function hannWindow(n) { const w = new Float32Array(n); for (let i = 0; i < n; i++) w[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (n - 1)); return w; }
+function magnitudeSpectrum(frame) {
+  const n = frame.length;
+  const re = Float32Array.from(frame), im = new Float32Array(n);
+  fftInPlace(re, im);
+  const mag = new Float32Array(n / 2);
+  for (let i = 0; i < n / 2; i++) mag[i] = Math.hypot(re[i], im[i]);
+  return mag;
+}
+
+// ═══════════════════════════════════════════════
+//  PITCH DETECTION — YIN algorithm (cumulative mean
+//  normalized difference function). This correctly
+//  resolves the octave ambiguity that plain autocorrelation
+//  suffers from — plain ACF on a clean tone scores lag=2τ
+//  (half the frequency) almost as high as lag=τ, so naive
+//  "prefer longer/shorter lag" heuristics guess wrong close
+//  to half the time. YIN's running-mean normalization fixes
+//  this properly instead of guessing a direction.
+// ═══════════════════════════════════════════════
+function removeDC(samples) {
+  let mean = 0;
+  for (let i = 0; i < samples.length; i++) mean += samples[i];
+  mean /= samples.length || 1;
+  const out = new Float32Array(samples.length);
+  for (let i = 0; i < samples.length; i++) out[i] = samples[i] - mean;
+  return out;
+}
+
+function detectPitchACF(frame, sampleRate, minFreq, maxFreq) {
+  const n = frame.length;
+  const maxLag = Math.min(n - 1, Math.floor(sampleRate / minFreq));
+  const minLag = Math.max(1, Math.floor(sampleRate / maxFreq));
+  if (maxLag <= minLag + 1) return null;
+
+  let energy0 = 0; for (let i = 0; i < n; i++) energy0 += frame[i] * frame[i];
+  if (energy0 < 1e-7) return null;
+
+  // Difference function d(tau) = sum (x[i]-x[i+tau])^2
+  const d = new Float32Array(maxLag + 1);
+  for (let tau = 0; tau <= maxLag; tau++) {
+    let sum = 0;
+    for (let i = 0; i < n - tau; i++) { const diff = frame[i] - frame[i + tau]; sum += diff * diff; }
+    d[tau] = sum;
+  }
+  // Cumulative mean normalized difference function
+  const dp = new Float32Array(maxLag + 1);
+  dp[0] = 1;
+  let running = 0;
+  for (let tau = 1; tau <= maxLag; tau++) { running += d[tau]; dp[tau] = d[tau] / ((running / tau) || 1e-9); }
+
+  const threshold = 0.15;
+  let tau = -1;
+  for (let t = minLag; t <= maxLag; t++) {
+    if (dp[t] < threshold) { while (t + 1 <= maxLag && dp[t + 1] < dp[t]) t++; tau = t; break; }
+  }
+  if (tau === -1) {
+    let bestTau = -1, bestVal = Infinity;
+    for (let t = minLag; t <= maxLag; t++) if (dp[t] < bestVal) { bestVal = dp[t]; bestTau = t; }
+    if (bestVal > 0.5) return null;
+    tau = bestTau;
+  }
+  const confidence = clamp(1 - dp[tau], 0, 1);
+  if (confidence < 0.35) return null;
+  return { freq: sampleRate / tau, confidence };
+}
+
+// ═══════════════════════════════════════════════
+//  RMS ENVELOPE + ADSR
+// ═══════════════════════════════════════════════
+function rmsEnvelope(samples, windowSize, hopSize) {
+  const n = samples.length;
+  const frames = Math.max(1, Math.floor((n - windowSize) / hopSize) + 1);
+  const env = new Float32Array(frames), times = new Float32Array(frames);
+  for (let f = 0; f < frames; f++) {
+    const start = f * hopSize;
+    let sum = 0;
+    for (let i = 0; i < windowSize && start + i < n; i++) { const s = samples[start + i]; sum += s * s; }
+    env[f] = Math.sqrt(sum / windowSize);
+    times[f] = start;
+  }
+  return { env, times };
+}
+
+function smoothEnvelope(env, taps) {
+  const n = env.length, half = Math.floor(taps / 2);
+  const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let sum = 0, count = 0;
+    for (let k = -half; k <= half; k++) { const j = i + k; if (j >= 0 && j < n) { sum += env[j]; count++; } }
+    out[i] = sum / count;
+  }
+  return out;
+}
+
+function analyzeEnvelope(env, times, sampleRate) {
+  const n = env.length;
+  let peakIdx = 0, peak = 0;
+  for (let i = 0; i < n; i++) if (env[i] > peak) { peak = env[i]; peakIdx = i; }
+  if (peak < 1e-6) return { attack: 0.01, sustain: 0.05, release: 0.1, punch: 0, peakVal: 0, peakIdx: 0 };
+  const attackThresh = peak * 0.9;
+  let attackIdx = peakIdx;
+  for (let i = 0; i <= peakIdx; i++) if (env[i] >= attackThresh) { attackIdx = i; break; }
+  const attackTime = Math.max(0.001, times[attackIdx] / sampleRate);
+  const settleOffset = Math.max(1, Math.round((attackIdx > 0 ? attackIdx : 5) * 1.5));
+  const settleIdx = Math.min(n - 1, peakIdx + settleOffset);
+  const settleVal = env[settleIdx];
+  const punch = peak > 0 ? clamp((peak - settleVal) / peak, 0, 1) : 0;
+  const sustainThresh = Math.max(settleVal * 0.7, peak * 0.15);
+  let sustainEndIdx = n - 1;
+  for (let i = peakIdx; i < n; i++) if (env[i] < sustainThresh) { sustainEndIdx = i; break; }
+  const sustainTime = Math.max(0, (times[sustainEndIdx] - times[peakIdx]) / sampleRate);
+  const releaseThresh = peak * 0.05;
+  let releaseEndIdx = n - 1;
+  for (let i = sustainEndIdx; i < n; i++) if (env[i] <= releaseThresh) { releaseEndIdx = i; break; }
+  const releaseTime = Math.max(0.001, (times[releaseEndIdx] - times[sustainEndIdx]) / sampleRate);
+  return { attack: attackTime, sustain: sustainTime, release: releaseTime, punch, peakVal: peak, peakIdx };
+}
+
+function detectRepeat(env, sampleRate, hopSize) {
+  const n = env.length; if (n < 8) return { repeatSpeed: 0 };
+  let energy = 0; for (let i = 0; i < n; i++) energy += env[i] * env[i];
+  if (energy < 1e-8) return { repeatSpeed: 0 };
+  const minLag = Math.max(1, Math.floor(0.05 * sampleRate / hopSize));
+  const maxLag = Math.floor(n * 0.8);
+  let bestLag = -1, bestCorr = 0.2;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let sum = 0; for (let i = 0; i < n - lag; i++) sum += env[i] * env[i + lag];
+    const corr = sum / energy;
+    if (corr > bestCorr) { bestCorr = corr; bestLag = lag; }
+  }
+  if (bestLag <= 0) return { repeatSpeed: 0 };
+  const periodSec = bestLag * hopSize / sampleRate;
+  const norm = clamp(1 - (periodSec - 0.05) / (2 - 0.05), 0, 1);
+  return { repeatSpeed: norm };
+}
+
+// ═══════════════════════════════════════════════
+//  PITCH CONTOUR: ramp / delta-ramp / vibrato / jump
+// ═══════════════════════════════════════════════
+function m3det(m) { return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1]) - m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0]) + m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0]); }
+function solve3x3(A, B) {
+  const det = m3det(A); if (Math.abs(det) < 1e-9) return null;
+  const Ax=[[B[0],A[0][1],A[0][2]],[B[1],A[1][1],A[1][2]],[B[2],A[2][1],A[2][2]]];
+  const Ay=[[A[0][0],B[0],A[0][2]],[A[1][0],B[1],A[1][2]],[A[2][0],B[2],A[2][2]]];
+  const Az=[[A[0][0],A[0][1],B[0]],[A[1][0],A[1][1],B[1]],[A[2][0],A[2][1],B[2]]];
+  return [m3det(Ax)/det, m3det(Ay)/det, m3det(Az)/det];
+}
+
+function detectVibrato(residual, frameRate) {
+  const n = residual.length; if (n < 6) return { strength: 0, speed: 0 };
+  let energy = 0; for (let i = 0; i < n; i++) energy += residual[i] * residual[i];
+  if (energy < 1e-6) return { strength: 0, speed: 0 };
+  const minHz = 2, maxHz = 15;
+  const minLag = Math.max(1, Math.floor(frameRate / maxHz));
+  const maxLag = Math.min(n - 1, Math.floor(frameRate / minHz));
+  let bestLag = -1, bestCorr = 0.15;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let sum = 0; for (let i = 0; i < n - lag; i++) sum += residual[i] * residual[i + lag];
+    const corr = sum / energy;
+    if (corr > bestCorr) { bestCorr = corr; bestLag = lag; }
+  }
+  if (bestLag <= 0) return { strength: 0, speed: 0 };
+  const speed = frameRate / bestLag;
+  let rms = 0; for (let i = 0; i < n; i++) rms += residual[i] * residual[i];
+  rms = Math.sqrt(rms / n);
+  return { strength: rms, speed };
+}
+
+function detectPitchJump(residuals, points, a, b, c) {
+  const n = residuals.length; if (n < 4) return { mod: 0, speed: 0 };
+  const diffs = [];
+  for (let i = 1; i < n; i++) diffs.push(Math.abs(residuals[i].r - residuals[i - 1].r));
+  const mean = diffs.reduce((s, v) => s + v, 0) / diffs.length;
+  const variance = diffs.reduce((s, v) => s + (v - mean) * (v - mean), 0) / diffs.length;
+  const std = Math.sqrt(variance) || 1e-6;
+  let bestIdx = -1, bestZ = 2.5;
+  for (let i = 0; i < diffs.length; i++) { const z = (diffs[i] - mean) / std; if (z > bestZ) { bestZ = z; bestIdx = i; } }
+  if (bestIdx < 0) return { mod: 0, speed: 0 };
+  const beforeFreq = a + b * points[bestIdx].t + c * points[bestIdx].t * points[bestIdx].t;
+  const jumpAmount = points[bestIdx + 1].freq - points[bestIdx].freq;
+  const mod = beforeFreq > 0 ? clamp(jumpAmount / beforeFreq, -1, 1) : 0;
+  const speed = clamp(points[bestIdx].t / (points[points.length - 1].t || 1), 0, 1);
+  return { mod, speed };
+}
+
+function analyzePitchContour(samples, sampleRate, frameSize, hop, minFreq, maxFreq) {
+  const points = [];
+  let totalFrames = 0;
+  for (let start = 0; start + frameSize <= samples.length; start += hop) {
+    totalFrames++;
+    const frame = samples.subarray(start, start + frameSize); // YIN wants raw samples, not windowed — tapering distorts the difference function
+    const r = detectPitchACF(frame, sampleRate, minFreq, maxFreq);
+    if (r) points.push({ t: (start + frameSize / 2) / sampleRate, freq: r.freq });
+  }
+  const voicedFraction = totalFrames > 0 ? points.length / totalFrames : 0;
+  if (points.length === 0) return { base: 0, ramp: 0, deltaRamp: 0, vibratoStrengthHz: 0, vibratoSpeed: 0, pitchJumpMod: 0, pitchJumpSpeed: 0, voicedFraction: 0 };
+  let sT=0,sF=0,sTT=0,sTF=0,sTTT=0,sTTF=0,sTTTT=0;
+  for (const p of points) { const t=p.t,f=p.freq; sT+=t;sF+=f;sTT+=t*t;sTF+=t*f;sTTT+=t*t*t;sTTF+=t*t*f;sTTTT+=t*t*t*t; }
+  const n = points.length;
+  const A=[[n,sT,sTT],[sT,sTT,sTTT],[sTT,sTTT,sTTTT]], B=[sF,sTF,sTTF];
+  const sol = solve3x3(A, B);
+  let a = points[0].freq, b = 0, c = 0;
+  if (sol) [a, b, c] = sol;
+  const residuals = points.map(p => ({ t: p.t, r: p.freq - (a + b*p.t + c*p.t*p.t) }));
+  const frameRate = sampleRate / hop;
+  const vib = detectVibrato(residuals.map(r => r.r), frameRate);
+  const jump = detectPitchJump(residuals, points, a, b, c);
+  return { base: a, ramp: b, deltaRamp: c, vibratoStrengthHz: vib.strength, vibratoSpeed: vib.speed, pitchJumpMod: jump.mod, pitchJumpSpeed: jump.speed, voicedFraction };
+}
+
+// ═══════════════════════════════════════════════
+//  SPECTRAL ANALYSIS: filters, waveform, duty cycle, flanger
+// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+//  SPECTROGRAM — keeps every frame's spectrum (not just
+//  the average) so individual partials can be tracked
+//  over time for multi-voice additive resynthesis.
+// ═══════════════════════════════════════════════
+function computeSpectrogram(samples, frameSize) {
+  const win = hannWindow(frameSize);
+  const hop = Math.floor(frameSize / 2);
+  const frames = [], times = [];
+  let sumMag = null, count = 0;
+  for (let start = 0; start + frameSize <= samples.length; start += hop) {
+    const frame = new Float32Array(frameSize);
+    let energy = 0;
+    for (let i = 0; i < frameSize; i++) { frame[i] = samples[start + i] * win[i]; energy += frame[i] * frame[i]; }
+    const mag = magnitudeSpectrum(frame);
+    frames.push(mag); times.push((start + frameSize / 2));
+    if (energy >= 1e-8) {
+      if (!sumMag) sumMag = new Float64Array(mag.length);
+      for (let i = 0; i < mag.length; i++) sumMag[i] += mag[i];
+      count++;
+    }
+  }
+  if (!sumMag || count === 0) return null;
+  const avg = new Float32Array(sumMag.length);
+  for (let i = 0; i < avg.length; i++) avg[i] = sumMag[i] / count;
+  return { avg, frames, times, hop };
+}
+
+function spectralCentroid(mag, sampleRate, frameSize) {
+  let num = 0, den = 0;
+  for (let i = 0; i < mag.length; i++) { const f = i * sampleRate / frameSize; num += f * mag[i]; den += mag[i]; }
+  return den > 0 ? num / den : 440;
+}
+
+// Find up to maxPeaks distinct local-maximum frequencies in the averaged
+// spectrum, skipping anything within minSpacingHz of an already-picked or
+// excluded frequency (avoids re-picking the same spectral lobe twice, and
+// avoids duplicating the already-tracked primary/fundamental frequency).
+function pickSpectralPeaks(avgSpectrum, sampleRate, frameSize, excludeFreqs, maxPeaks, minSpacingHz) {
+  const n = avgSpectrum.length;
+  const binHz = sampleRate / frameSize;
+  let globalMax = 0; for (let i = 0; i < n; i++) if (avgSpectrum[i] > globalMax) globalMax = avgSpectrum[i];
+  if (globalMax < 1e-8) return [];
+  const noiseFloor = globalMax * 0.06;
+
+  const candidates = [];
+  for (let i = 2; i < n - 2; i++) {
+    if (avgSpectrum[i] < noiseFloor) continue;
+    if (avgSpectrum[i] > avgSpectrum[i - 1] && avgSpectrum[i] > avgSpectrum[i + 1] &&
+        avgSpectrum[i] >= avgSpectrum[i - 2] && avgSpectrum[i] >= avgSpectrum[i + 2]) {
+      candidates.push({ freq: i * binHz, mag: avgSpectrum[i], bin: i });
+    }
+  }
+  candidates.sort((a, b) => b.mag - a.mag);
+
+  const picked = [];
+  const taken = [...(excludeFreqs || [])];
+  for (const c of candidates) {
+    if (picked.length >= maxPeaks) break;
+    if (taken.some(f => Math.abs(f - c.freq) < minSpacingHz)) continue;
+    picked.push(c);
+    taken.push(c.freq);
+  }
+  return picked;
+}
+
+// Follows one partial's magnitude across every frame of the spectrogram,
+// giving that specific frequency its own amplitude-over-time contour —
+// this is what lets each voice get an independently-fitted ADSR envelope
+// instead of every voice sharing one blended envelope.
+function extractPartialEnvelope(spectro, sampleRate, frameSize, targetFreq) {
+  const binHz = sampleRate / frameSize;
+  const centerBin = Math.round(targetFreq / binHz);
+  const n = spectro.frames.length;
+  const env = new Float32Array(n), times = new Float32Array(n);
+  for (let t = 0; t < n; t++) {
+    const mag = spectro.frames[t];
+    let sum = 0, cnt = 0;
+    for (let b = centerBin - 1; b <= centerBin + 1; b++) { if (b >= 0 && b < mag.length) { sum += mag[b]; cnt++; } }
+    env[t] = cnt > 0 ? sum / cnt : 0;
+    times[t] = spectro.times[t];
+  }
+  return { env, times };
+}
+
+// Local "peakiness" of one bin relative to its neighbourhood — an isolated
+// narrow spike (pure sine-like partial) scores high; a broad noisy bump
+// (richer/noisier partial) scores low. Used to pick a sensible waveType
+// for secondary voices without a full harmonic-series analysis for each one.
+function binPeakiness(avgSpectrum, bin) {
+  const n = avgSpectrum.length;
+  const peak = avgSpectrum[bin] || 1e-9;
+  let neighSum = 0, cnt = 0;
+  for (let b = bin - 4; b <= bin + 4; b++) { if (b >= 0 && b < n && b !== bin) { neighSum += avgSpectrum[b]; cnt++; } }
+  const neighAvg = cnt > 0 ? neighSum / cnt : peak;
+  return clamp(peak / (neighAvg + 1e-9) / 6, 0, 1); // rough 0..1 normalization
+}
+
+const NOTE_NAMES_S2G = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+function noteNameFromFreq(f) {
+  if (!f || f <= 0) return '—';
+  const midi = 69 + 12 * Math.log2(f / 440);
+  const m = Math.round(midi);
+  return NOTE_NAMES_S2G[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+}
+
+function detectFilters(avgSpectrum, sampleRate, frameSize) {
+  const n = avgSpectrum.length;
+  let peak = 0; for (let i = 0; i < n; i++) if (avgSpectrum[i] > peak) peak = avgSpectrum[i];
+  if (peak < 1e-8) return { lowPass: 10000, highPass: 0 };
+  const threshLin = peak * Math.pow(10, -20 / 20);
+  let lowPassBin = n - 1;
+  for (let i = n - 1; i >= 0; i--) if (avgSpectrum[i] >= threshLin) { lowPassBin = i; break; }
+  let highPassBin = 0;
+  for (let i = 0; i < n; i++) if (avgSpectrum[i] >= threshLin) { highPassBin = i; break; }
+  const binHz = sampleRate / frameSize;
+  const lowPass = clamp(lowPassBin * binHz, 200, sampleRate / 2);
+  const highPass = highPassBin > 2 ? clamp(highPassBin * binHz, 0, 5000) : 0;
+  return { lowPass, highPass };
+}
+
+function classifyWaveform(avgSpectrum, sampleRate, frameSize, fundamentalHz) {
+  if (!fundamentalHz || fundamentalHz <= 0) return 3;
+  const binHz = sampleRate / frameSize;
+  const getBin = hz => Math.round(hz / binHz);
+  const mag = k => { const b = getBin(fundamentalHz * k); return (b >= 0 && b < avgSpectrum.length) ? avgSpectrum[b] : 0; };
+  const h1 = mag(1) || 1e-9;
+  const h = [2,3,4,5,6,7,8].map(mag);
+  const evenSum = h[0] + h[2] + h[4] + h[6]; // harmonics 2,4,6,8
+  const oddSum = h[1] + h[3] + h[5];          // harmonics 3,5,7
+  const total = evenSum + oddSum;
+  if (total < h1 * 0.15) return 0; // Sine
+  const evenRatio = total > 0 ? evenSum / total : 0;
+  if (evenRatio < 0.25) {
+    const ratio3 = h[1] / h1; // 3rd harmonic relative strength
+    return ratio3 > 0.22 ? 1 : 2; // Square vs Triangle
+  }
+  return 3; // Sawtooth
+}
+
+function estimateDutyCycle(samples, sampleRate, fundamentalHz) {
+  if (!fundamentalHz || fundamentalHz <= 0) return { duty: 0.5, ramp: 0 };
+  const period = sampleRate / fundamentalHz;
+  const windowLen = Math.max(8, Math.round(period * 4));
+  const total = samples.length;
+  const numWindows = 6;
+  const duties = [];
+  for (let w = 0; w < numWindows; w++) {
+    const start = Math.floor((w / numWindows) * Math.max(0, total - windowLen));
+    let mean = 0, count = 0;
+    for (let i = 0; i < windowLen && start + i < total; i++) { mean += samples[start + i]; count++; }
+    mean /= count || 1;
+    let above = 0;
+    for (let i = 0; i < windowLen && start + i < total; i++) if ((samples[start + i] - mean) > 0) above++;
+    if (count > 0) duties.push(above / count);
+  }
+  if (duties.length === 0) return { duty: 0.5, ramp: 0 };
+  const avg = duties.reduce((s, v) => s + v, 0) / duties.length;
+  const ramp = duties[duties.length - 1] - duties[0];
+  return { duty: clamp(avg, 0.05, 0.95), ramp: clamp(ramp, -1, 1) };
+}
+
+function detectReverb(env, sampleRate, hopSize, peakIdx) {
+  const n = env.length;
+  if (n - peakIdx < 6) return { delay: 0, decay: 0 };
+  const tail = env.slice(peakIdx);
+  let energy = 0; for (let i = 0; i < tail.length; i++) energy += tail[i] * tail[i];
+  if (energy < 1e-8) return { delay: 0, decay: 0 };
+  const minLag = Math.max(1, Math.floor(0.01 * sampleRate / hopSize));
+  const maxLag = Math.min(tail.length - 1, Math.floor(0.5 * sampleRate / hopSize));
+  let bestLag = -1, bestCorr = 0.25;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    let sum = 0; for (let i = 0; i < tail.length - lag; i++) sum += tail[i] * tail[i + lag];
+    const corr = sum / energy;
+    if (corr > bestCorr) { bestCorr = corr; bestLag = lag; }
+  }
+  if (bestLag <= 0) return { delay: 0, decay: 0 };
+  const delaySec = Math.min(0.5, bestLag * hopSize / sampleRate);
+  const decay = clamp(bestCorr, 0, 0.99);
+  return { delay: delaySec, decay };
+}
+
+function detectFlanger(avgSpectrum, sampleRate, frameSize) {
+  const n = avgSpectrum.length; if (n < 32) return { freq: 0, depth: 0 };
+  const logMag = new Float32Array(n);
+  let maxV = 1e-9; for (let i = 0; i < n; i++) maxV = Math.max(maxV, avgSpectrum[i]);
+  for (let i = 0; i < n; i++) logMag[i] = Math.log10((avgSpectrum[i] / maxV) + 1e-4);
+  let energy = 0; for (let i = 0; i < n; i++) energy += logMag[i] * logMag[i];
+  if (energy < 1e-6) return { freq: 0, depth: 0 };
+  const maxLagBins = Math.min(n - 1, 200);
+  let bestLag = -1, bestCorr = 0.35;
+  for (let lag = 2; lag <= maxLagBins; lag++) {
+    let sum = 0; for (let i = 0; i < n - lag; i++) sum += logMag[i] * logMag[i + lag];
+    const corr = sum / energy;
+    if (corr > bestCorr) { bestCorr = corr; bestLag = lag; }
+  }
+  if (bestLag <= 0) return { freq: 0, depth: 0 };
+  const binHz = sampleRate / frameSize;
+  const notchSpacingHz = bestLag * binHz;
+  const impliedDelay = notchSpacingHz > 0 ? 1 / notchSpacingHz : 0;
+  const freqParam = clamp(impliedDelay > 0 ? (1 / impliedDelay) / 50 : 0, 0, 20);
+  const depth = clamp((bestCorr - 0.35) / 0.65, 0, 1);
+  return { freq: freqParam, depth };
+}
+
+function peakVolume(samples) { let p = 0; for (let i = 0; i < samples.length; i++) { const a = Math.abs(samples[i]); if (a > p) p = a; } return p; }
+
+// ═══════════════════════════════════════════════
+//  FULL ANALYSIS PIPELINE — multi-voice additive resynthesis
+// ═══════════════════════════════════════════════
+async function analyzeAudio(monoSamples, sampleRate, opts, onProgress) {
+  const capSamples = opts.forceFullLength ? monoSamples.length : Math.min(monoSamples.length, Math.floor(opts.capSeconds * sampleRate));
+  const samplesRaw = monoSamples.subarray(0, capSamples);
+  const samples = removeDC(samplesRaw);
+  const maxVoices = Math.max(1, Math.min(16, opts.voiceCount || 1));
+
+  onProgress?.('Computing amplitude envelope…', 8); await sleep0();
+  const hopEnv = 256, winEnv = 512;
+  const rmsRaw = rmsEnvelope(samples, winEnv, hopEnv);
+  const env = smoothEnvelope(rmsRaw.env, 3);
+  const times = rmsRaw.times;
+  const adsr = analyzeEnvelope(env, times, sampleRate);
+  const repeat = detectRepeat(env, sampleRate, hopEnv);
+
+  onProgress?.('Detecting primary pitch…', 25); await sleep0();
+  const frameSize = nextPow2(Math.round(sampleRate * 0.046));
+  const hopPitch = Math.round(frameSize / 4);
+  const pitch = analyzePitchContour(samples, sampleRate, frameSize, hopPitch, opts.minFreq, opts.maxFreq);
+  const tonalConfidence = clamp(pitch.voicedFraction, 0, 1);
+
+  onProgress?.('Building spectrogram…', 42); await sleep0();
+  const spectro = computeSpectrogram(samples, frameSize);
+  const avgSpec = spectro ? spectro.avg : null;
+  const filters = avgSpec ? detectFilters(avgSpec, sampleRate, frameSize) : { lowPass: 10000, highPass: 0 };
+  const flanger = avgSpec ? detectFlanger(avgSpec, sampleRate, frameSize) : { freq: 0, depth: 0 };
+
+  let freqBase;
+  if (pitch.base > 0 && isFinite(pitch.base) && tonalConfidence > 0.15) {
+    freqBase = pitch.base;
+  } else {
+    const rawCentroid = avgSpec ? spectralCentroid(avgSpec, sampleRate, frameSize) : 440;
+    freqBase = 220 * Math.pow(clamp(rawCentroid, 40, 8000) / 220, 0.55);
+  }
+  freqBase = clamp(freqBase, 20, 8000);
+  const waveType = avgSpec ? classifyWaveform(avgSpec, sampleRate, frameSize, freqBase) : 3;
+  const duty = estimateDutyCycle(samples, sampleRate, freqBase);
+  const reverb = detectReverb(env, sampleRate, hopEnv, adsr.peakIdx || 0);
+
+  const sharedFx = {
+    frequencyLimit: 30,
+    dutyCycle: clamp(duty.duty, 0, 1),
+    dutyCycleRamp: clamp(duty.ramp, -1, 1),
+    repeatSpeed: clamp(repeat.repeatSpeed || 0, 0, 1),
+    flangerFrequency: clamp(flanger.freq, 0, 20),
+    flangerDepth: clamp(flanger.depth, 0, 1),
+    lowPassFilterFrequency: Math.round(clamp(filters.lowPass, 200, sampleRate / 2)),
+    highPassFilterFrequency: Math.round(clamp(filters.highPass, 0, 5000)),
+    reverbDelay: clamp(reverb.delay, 0, 0.5),
+    reverbDecayFactor: clamp(reverb.decay, 0, 0.99),
+  };
+
+  // ── Voice 1 (primary): full pitch-contour treatment — this is the
+  // dominant perceived tone, so it gets ramp/vibrato/jump modulation. ──
+  const overallVolume = clamp(peakVolume(samples), 0.05, 1.0);
+  const voices = [{
+    role: 'primary', freq: Math.round(freqBase),
+    volume: overallVolume, waveType,
+    envelopeAttack: clamp(adsr.attack, 0.001, 2.0),
+    envelopeSustain: clamp(adsr.sustain, 0, 5.0),
+    envelopeRelease: clamp(adsr.release, 0.001, 3.0),
+    envelopePunch: clamp(adsr.punch, 0, 1),
+    frequencyRamp: Math.round(clamp(pitch.ramp || 0, -5000, 5000)),
+    frequencyDeltaRamp: Math.round(clamp(pitch.deltaRamp || 0, -20000, 20000)),
+    vibratoStrength: clamp(freqBase > 0 ? (pitch.vibratoStrengthHz || 0) / freqBase : 0, 0, 1),
+    vibratoSpeed: clamp(pitch.vibratoSpeed || 0, 0, 40),
+    pitchJumpMod: clamp(pitch.pitchJumpMod || 0, -1, 1),
+    pitchJumpSpeed: clamp(pitch.pitchJumpSpeed || 0, 0, 1),
+    ...sharedFx,
+  }];
+
+  // ── Voices 2..K: additive resynthesis — additional simultaneous
+  // frequency partials picked from the spectrum, each independently
+  // tracked over time for its own envelope. This is what lets the tool
+  // approximate chords, layered FX, and richer timbres instead of a
+  // single thin tone — the same "many simple nodes played together"
+  // trick already used for chords/polyphony in midi2grab. ──
+  let extraVoices = [];
+  if (maxVoices > 1 && spectro) {
+    onProgress?.('Picking additional partials…', 60); await sleep0();
+    const minSpacing = Math.max(25, freqBase * 0.06);
+    const peaks = pickSpectralPeaks(avgSpec, sampleRate, frameSize, [freqBase], maxVoices - 1, minSpacing);
+
+    onProgress?.('Tracking each partial over time…', 75); await sleep0();
+    const peakMag = peaks.length ? Math.max(...peaks.map(p => p.mag)) : 1;
+    for (const pk of peaks) {
+      const pe = extractPartialEnvelope(spectro, sampleRate, frameSize, pk.freq);
+      const peSmoothed = smoothEnvelope(pe.env, 3);
+      const vAdsr = analyzeEnvelope(peSmoothed, pe.times, sampleRate);
+      const relStrength = clamp(pk.mag / peakMag, 0, 1);
+      const purity = binPeakiness(avgSpec, pk.bin);
+      extraVoices.push({
+        role: 'partial', freq: Math.round(pk.freq),
+        volume: clamp(overallVolume * relStrength, 0.12, 1.0),
+        waveType: purity > 0.5 ? 0 : waveType, // isolated clean spike -> Sine, else match primary's character
+        envelopeAttack: clamp(vAdsr.attack, 0.001, 2.0),
+        envelopeSustain: clamp(vAdsr.sustain, 0, 5.0),
+        envelopeRelease: clamp(vAdsr.release, 0.001, 3.0),
+        envelopePunch: clamp(vAdsr.punch, 0, 1),
+        frequencyRamp: 0, frequencyDeltaRamp: 0,
+        vibratoStrength: 0, vibratoSpeed: 0, pitchJumpMod: 0, pitchJumpSpeed: 0,
+        ...sharedFx,
+      });
+    }
+  }
+  const allVoices = [...voices, ...extraVoices];
+
+  onProgress?.('Finalising parameters…', 96); await sleep0();
+  // Backward-compatible single-voice params object (voice 1) for the
+  // classic single-oscillator UI fields / single-block mode.
+  const params = {
+    volume: allVoices[0].volume, waveType: allVoices[0].waveType,
+    envelopeAttack: allVoices[0].envelopeAttack, envelopeSustain: allVoices[0].envelopeSustain,
+    envelopeRelease: allVoices[0].envelopeRelease, envelopePunch: allVoices[0].envelopePunch,
+    frequencyBase: allVoices[0].freq, frequencyLimit: 30,
+    frequencyRamp: allVoices[0].frequencyRamp, frequencyDeltaRamp: allVoices[0].frequencyDeltaRamp,
+    vibratoStrength: allVoices[0].vibratoStrength, vibratoSpeed: allVoices[0].vibratoSpeed,
+    pitchJumpMod: allVoices[0].pitchJumpMod, pitchJumpSpeed: allVoices[0].pitchJumpSpeed,
+    dutyCycle: sharedFx.dutyCycle, dutyCycleRamp: sharedFx.dutyCycleRamp, repeatSpeed: sharedFx.repeatSpeed,
+    flangerFrequency: sharedFx.flangerFrequency, flangerDepth: sharedFx.flangerDepth,
+    lowPassFilterFrequency: sharedFx.lowPassFilterFrequency, highPassFilterFrequency: sharedFx.highPassFilterFrequency,
+    reverbDelay: sharedFx.reverbDelay, reverbDecayFactor: sharedFx.reverbDecayFactor,
+  };
+  onProgress?.('Done!', 100);
+  return {
+    params, voices: allVoices,
+    meta: { durationAnalyzed: samples.length / sampleRate, durationTotal: monoSamples.length / sampleRate, sampleRate, wasCapped: capSamples < monoSamples.length, tonalConfidence, voiceCount: allVoices.length }
+  };
+}
+
+// ═══════════════════════════════════════════════
+//  LEVEL JSON ASSEMBLY
+// ═══════════════════════════════════════════════
+function safeName(t) { return (t || 'sound2grab').replace(/[^\w\s\-.]/g, '').replace(/\s+/g, '_').slice(0, 60) || 'sound2grab'; }
+
+// ═══════════════════════════════════════════════
+//  LEVEL JSON ASSEMBLY — supports 1..N sound nodes
+// ═══════════════════════════════════════════════
+function safeName(t) { return (t || 'sound2grab').replace(/[^\w\s\-.]/g, '').replace(/\s+/g, '_').slice(0, 60) || 'sound2grab'; }
+
+const VOICE_PARAM_KEYS = ['volume','waveType','envelopeAttack','envelopeSustain','envelopeRelease','envelopePunch','frequencyLimit','frequencyRamp','frequencyDeltaRamp','vibratoStrength','vibratoSpeed','pitchJumpMod','pitchJumpSpeed','dutyCycle','dutyCycleRamp','repeatSpeed','flangerFrequency','flangerDepth','lowPassFilterFrequency','highPassFilterFrequency','reverbDelay','reverbDecayFactor'];
+
+function voiceToGrabParams(voice) {
+  const p = { frequencyBase: Math.round(voice.freq) };
+  for (const k of VOICE_PARAM_KEYS) p[k] = voice[k];
+  return p;
+}
+
+function buildSoundLevelJSON(voices, opts) {
+  const title = opts.title, creator = opts.creator || 'Bananamaster6', description = opts.description || 'audio converted to grab sound settings';
+  const nodes = [];
+  let id = 1;
+  nodes.push({ levelNodeStart: { position: { x: 0, y: 1, z: -3 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, radius: 1.2 } });
+
+  const padId = id++;
+  nodes.push({ objectID: padId, levelNodeStatic: { shape: 1000, position: { x: 0, y: 0, z: 0 }, scale: { x: 6, y: 0.4, z: 6 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, material: 8, isNeon: true, isGrabbable: true, isGrapplable: true, isPassable: false, isAdditive: false, specularBrightness: 0.3 } });
+
+  const soundIds = [];
+  voices.forEach((v, i) => {
+    const soundId = id++;
+    soundIds.push(soundId);
+    const p = voiceToGrabParams(v);
+    nodes.push({ objectID: soundId, levelNodeSound: {
+      position: { x: (i - (voices.length - 1) / 2) * 0.35, y: 2.2 + i * 0.12, z: 0 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 },
+      startActive: false, parameters: p, volume: p.volume, maxRangeFactor: 1000, repeat: false,
+      name: `sound2grab_${safeName(title).slice(0, 32)}_v${i + 1}${v.role === 'primary' ? '_primary' : ''}`
+    } });
+  });
+
+  const swingId = id++;
+  const swingFrames = [
+    { time: 0, position: { x: -2, y: 1.2, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } },
+    { time: 1.2, position: { x: 2, y: 1.2, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } },
+    { time: 2.4, position: { x: -2, y: 1.2, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } },
+  ];
+  nodes.push({ objectID: swingId, animations: [{ name: 'sweep', speed: 1, currentFrameIndex: 0, frames: swingFrames }], activeAnimation: 0,
+    levelNodeStatic: { shape: 1000, position: { x: -2, y: 1.2, z: 0 }, scale: { x: 0.6, y: 0.6, z: 0.6 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, material: 5, isNeon: true, isGrabbable: false, isGrapplable: false, isPassable: true, isAdditive: false, specularBrightness: 0.4 } });
+
+  nodes.push({ levelNodeTrigger: { shape: 1000, position: { x: 0, y: 1.2, z: 0 }, scale: { x: 0.8, y: 1, z: 1 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, isShared: false,
+    triggerSources: [{ triggerSourceBasic: { type: 4, objectID: swingId } }],
+    triggerTargets: soundIds.map(sid => ({ triggerTargetSound: { objectID: sid, mode: 1 } })) } });
+
+  const voiceDesc = voices.length > 1 ? `${voices.length}-voice additive resynthesis` : 'single-oscillator';
+  nodes.push({ levelNodeSign: { position: { x: 0, y: 3.2, z: -1.2 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, text: `${title}\nSound2GRAB · ${voiceDesc}\nWalk near the swinging block to hear it`, scale: 16, isNeon: false } });
+  nodes.push({ levelNodeFinish: { position: { x: 0, y: 1, z: 3 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, radius: 1.2 } });
+
+  return {
+    formatVersion: 17, title, creators: creator, description,
+    tags: ['innovative', 'showcase'], maxCheckpointCount: 10, fogDensity: 0,
+    ambienceSettings: { skyZenithColor: { r: 0.28, g: 0.476, b: 0.73, a: 1 }, skyHorizonColor: { r: 0.916, g: 0.9574, b: 0.9574, a: 1 }, sunAltitude: 45, sunAzimuth: 315, sunSize: 0.5, fogDensity: 0 },
+    levelNodes: nodes,
+  };
+}
+
+// ═══════════════════════════════════════════════
+//  SYNTHESIS PREVIEW (matches GRAB param model)
+// ═══════════════════════════════════════════════
+function synthesizeBuffer(params, durationSec, sampleRate) {
+  const n = Math.max(1, Math.round(durationSec * sampleRate));
+  const buf = new Float32Array(n);
+  const attackN = Math.round(params.envelopeAttack * sampleRate);
+  const sustainN = Math.round(params.envelopeSustain * sampleRate);
+  const releaseN = Math.round(params.envelopeRelease * sampleRate);
+  let phase = 0;
+  for (let i = 0; i < n; i++) {
+    const t = i / sampleRate;
+    let freq = params.frequencyBase + params.frequencyRamp * t + params.frequencyDeltaRamp * t * t;
+    if (params.pitchJumpMod && (t / durationSec) >= params.pitchJumpSpeed) freq *= (1 + params.pitchJumpMod);
+    freq += params.frequencyBase * (params.vibratoStrength || 0) * Math.sin(2 * Math.PI * (params.vibratoSpeed || 0) * t);
+    freq = Math.max(params.frequencyLimit || 20, freq);
+    phase += freq / sampleRate;
+    const ph = phase - Math.floor(phase);
+    let duty = clamp((params.dutyCycle||0.5) + (params.dutyCycleRamp || 0) * (t / durationSec), 0.02, 0.98);
+    let s;
+    switch (params.waveType) {
+      case 1: s = ph < duty ? 1 : -1; break;
+      case 2: s = ph < 0.5 ? (4*ph - 1) : (3 - 4*ph); break;
+      case 3: s = 2*ph - 1; break;
+      default: s = Math.sin(2*Math.PI*ph); break;
+    }
+    let env;
+    if (i < attackN) { const p = i / Math.max(1, attackN); env = p * (1 + (params.envelopePunch||0)*(1-p)); }
+    else if (i < attackN + sustainN) { env = 1; }
+    else if (i < attackN + sustainN + releaseN) { const p = (i - attackN - sustainN) / Math.max(1, releaseN); env = 1 - p; }
+    else env = 0;
+    buf[i] = s * env * (params.volume || 0.8);
+  }
+  return buf;
+}
+
+let sharedAC = null;
+function getAC() { if (!sharedAC) sharedAC = new (window.AudioContext || window.webkitAudioContext)(); if (sharedAC.state === 'suspended') sharedAC.resume(); return sharedAC; }
+
+let activePreviewSrc = null, activeOrigSrc = null;
+
+function previewVoices(voices) {
+  const ac = getAC();
+  if (activePreviewSrc) { try { activePreviewSrc.stop(); } catch {} activePreviewSrc = null; }
+  if (!voices || !voices.length) return;
+  const shared = voices[0]; // shared FX fields are identical across all voices by construction
+  const longest = Math.max(...voices.map(v => v.envelopeAttack + v.envelopeSustain + v.envelopeRelease));
+  const duration = Math.max(0.15, longest + (shared.reverbDelay || 0) * 3 + 0.3);
+  const sr = ac.sampleRate;
+  const n = Math.max(1, Math.round(duration * sr));
+  const mix = new Float32Array(n);
+  const gainComp = 1 / Math.sqrt(Math.max(1, voices.length)); // headroom so more voices doesn't just clip louder
+  for (const v of voices) {
+    const raw = synthesizeBuffer(voiceToGrabParams(v), duration, sr);
+    for (let i = 0; i < n; i++) mix[i] += raw[i] * gainComp;
+  }
+  let peak = 0; for (let i = 0; i < n; i++) { const a = Math.abs(mix[i]); if (a > peak) peak = a; }
+  if (peak > 0.98) { const s = 0.98 / peak; for (let i = 0; i < n; i++) mix[i] *= s; }
+
+  const buffer = ac.createBuffer(1, n, sr);
+  buffer.copyToChannel(mix, 0);
+  const src = ac.createBufferSource(); src.buffer = buffer;
+
+  const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = Math.min(sr / 2 - 100, shared.lowPassFilterFrequency || 10000);
+  const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = Math.max(0, shared.highPassFilterFrequency || 0);
+  src.connect(lp); lp.connect(hp);
+
+  let stageOut = hp;
+  if (shared.flangerDepth > 0.02) {
+    const delay = ac.createDelay(0.05);
+    const lfo = ac.createOscillator(); lfo.frequency.value = Math.max(0.05, shared.flangerFrequency || 0.5);
+    const lfoGain = ac.createGain(); lfoGain.gain.value = 0.003;
+    delay.delayTime.value = 0.005;
+    lfo.connect(lfoGain); lfoGain.connect(delay.delayTime); lfo.start();
+    const wet = ac.createGain(); wet.gain.value = shared.flangerDepth;
+    const dry = ac.createGain(); dry.gain.value = 1;
+    const merge = ac.createGain();
+    stageOut.connect(delay); delay.connect(wet); wet.connect(merge);
+    stageOut.connect(dry); dry.connect(merge);
+    stageOut = merge;
+  }
+  if (shared.reverbDelay > 0.005 && shared.reverbDecayFactor > 0.01) {
+    const rev = ac.createDelay(1.0); rev.delayTime.value = shared.reverbDelay;
+    const fb = ac.createGain(); fb.gain.value = Math.min(0.95, shared.reverbDecayFactor);
+    const wet = ac.createGain(); wet.gain.value = 0.6;
+    const merge2 = ac.createGain();
+    stageOut.connect(rev); rev.connect(fb); fb.connect(rev); rev.connect(wet); wet.connect(merge2);
+    stageOut.connect(merge2);
+    stageOut = merge2;
+  }
+  stageOut.connect(ac.destination);
+  src.start();
+  activePreviewSrc = src;
+  document.getElementById('previewBtn').disabled = true;
+  document.getElementById('stopPreviewBtn').disabled = false;
+  src.onended = () => { document.getElementById('previewBtn').disabled = false; document.getElementById('stopPreviewBtn').disabled = true; activePreviewSrc = null; };
+  setTimeout(() => { if (activePreviewSrc === src) { try { src.stop(); } catch {} } }, (duration + (shared.reverbDelay||0)*3 + 1) * 1000);
+}
+
+// ═══════════════════════════════════════════════
+//  WAVEFORM DRAW
+// ═══════════════════════════════════════════════
+function drawWaveform(samples, trim) {
+  const cv = document.getElementById('waveCanvas');
+  const w = cv.parentElement.clientWidth || 380; cv.width = w; cv.style.width = w + 'px';
+  const h = cv.height; const ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#07090f'; ctx.fillRect(0, 0, w, h);
+  const mid = h / 2;
+  const totalDur = samples.length / sampleRate;
+  ctx.strokeStyle = 'rgba(61,252,190,.15)'; ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();
+  const samplesPerPx = Math.max(1, Math.floor(samples.length / w));
+  ctx.fillStyle = 'rgba(61,252,190,.6)';
+  for (let x = 0; x < w; x++) {
+    let min = 1, max = -1; const start = x * samplesPerPx;
+    for (let i = 0; i < samplesPerPx && start + i < samples.length; i++) { const v = samples[start + i]; if (v < min) min = v; if (v > max) max = v; }
+    const y1 = mid - max * mid * 0.9, y2 = mid - min * mid * 0.9;
+    ctx.fillRect(x, y1, 1, Math.max(1, y2 - y1));
+  }
+  if (trim && totalDur > 0) {
+    const x1 = (trim.startSec / totalDur) * w, x2 = (trim.endSec / totalDur) * w;
+    ctx.fillStyle = 'rgba(0,0,0,.65)';
+    if (x1 > 0) ctx.fillRect(0, 0, x1, h);
+    if (x2 < w) ctx.fillRect(x2, 0, w - x2, h);
+    ctx.strokeStyle = 'rgba(255,192,96,.8)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x1, 0); ctx.lineTo(x1, h); ctx.moveTo(x2, 0); ctx.lineTo(x2, h); ctx.stroke();
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  APP STATE + UI WIRING
+// ═══════════════════════════════════════════════
+let monoSamples = null, sampleRate = 44100, currentFileName = '', currentJson = null;
+let decodedBuffer = null;
+
+const ss = (msg, cls) => { const el = document.getElementById('statusEl'); el.className = 'status' + (cls ? ' ' + cls : ''); el.textContent = msg; };
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('over'); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+async function handleFile(file) {
+  ss('Decoding audio…', 'load');
+  currentFileName = file.name;
+  try {
+    const arrayBuf = await file.arrayBuffer();
+    const ac = getAC();
+    decodedBuffer = await ac.decodeAudioData(arrayBuf.slice(0));
+    const chs = decodedBuffer.numberOfChannels;
+    const len = decodedBuffer.length;
+    const mono = new Float32Array(len);
+    for (let c = 0; c < chs; c++) { const data = decodedBuffer.getChannelData(c); for (let i = 0; i < len; i++) mono[i] += data[i] / chs; }
+    monoSamples = mono;
+    sampleRate = decodedBuffer.sampleRate;
+    const dur = len / sampleRate;
+
+    document.getElementById('fileNameLbl').textContent = file.name;
+    document.getElementById('waveMeta').textContent = `${dur.toFixed(2)}s · ${sampleRate}Hz · ${chs}ch`;
+    document.getElementById('wavePanel').style.display = 'block';
+    document.getElementById('trimPanel').style.display = 'block';
+    document.getElementById('confidencePanel').style.display = 'none';
+
+    document.getElementById('trimStart').value = 0;
+    document.getElementById('trimStart').max = dur;
+    document.getElementById('trimEnd').value = dur.toFixed(2);
+    document.getElementById('trimEnd').max = dur;
+    drawWaveform(monoSamples);
+
+    document.getElementById('lvlTitle').value = `${file.name} By Bananamaster6`;
+    document.getElementById('analyzeBtn').disabled = false;
+
+    updateCapWarning();
+    ss(`Loaded "${file.name}" · ${dur.toFixed(2)}s @ ${sampleRate}Hz`, 'ok');
+  } catch (err) {
+    console.error(err);
+    ss(`Could not decode this file: ${err.message}`, 'err');
+  }
+}
+
+function getTrimRange() {
+  const totalDur = monoSamples ? monoSamples.length / sampleRate : 0;
+  let ts = clamp(+document.getElementById('trimStart').value || 0, 0, totalDur);
+  let te = clamp(+document.getElementById('trimEnd').value || totalDur, 0, totalDur);
+  if (te <= ts) te = totalDur;
+  return { startSec: ts, endSec: te };
+}
+function getTrimmedSamples() {
+  if (!monoSamples) return null;
+  const { startSec, endSec } = getTrimRange();
+  const s = Math.floor(startSec * sampleRate), e = Math.min(monoSamples.length, Math.ceil(endSec * sampleRate));
+  return monoSamples.subarray(s, Math.max(s + 1, e));
+}
+function updateCapWarning() {
+  if (!monoSamples) return;
+  const trimmed = getTrimmedSamples();
+  const dur = trimmed.length / sampleRate;
+  const capEl = document.getElementById('capSeconds'), capWarn = document.getElementById('capWarn');
+  if (dur > +capEl.value && !document.getElementById('forceFullLength').checked) {
+    capWarn.style.display = 'block';
+    capWarn.textContent = `⚠ Trimmed region is ${dur.toFixed(1)}s — only the first ${capEl.value}s of it will be analyzed by default. Increase the cap or check "Force full length" to bypass.`;
+  } else { capWarn.style.display = 'none'; }
+  drawWaveform(monoSamples, getTrimRange());
+}
+
+document.getElementById('trimStart').addEventListener('input', updateCapWarning);
+document.getElementById('trimEnd').addEventListener('input', updateCapWarning);
+document.getElementById('autoTrimBtn').addEventListener('click', () => {
+  if (!monoSamples) return;
+  const peak = peakVolume(monoSamples);
+  if (peak < 1e-6) return;
+  const thresh = peak * 0.03;
+  let first = 0, last = monoSamples.length - 1;
+  for (let i = 0; i < monoSamples.length; i++) if (Math.abs(monoSamples[i]) >= thresh) { first = i; break; }
+  for (let i = monoSamples.length - 1; i >= 0; i--) if (Math.abs(monoSamples[i]) >= thresh) { last = i; break; }
+  const pad = Math.round(0.01 * sampleRate); // 10ms padding so we don't clip the attack itself
+  document.getElementById('trimStart').value = Math.max(0, (first - pad) / sampleRate).toFixed(3);
+  document.getElementById('trimEnd').value = Math.min(monoSamples.length / sampleRate, (last + pad) / sampleRate).toFixed(3);
+  updateCapWarning();
+  ss('Auto-trimmed to the loudest region of the file.', 'ok');
+});
+
+document.getElementById('capSeconds').addEventListener('input', updateCapWarning);
+document.getElementById('forceFullLength').addEventListener('change', function () {
+  document.getElementById('capSeconds').disabled = this.checked;
+  updateCapWarning();
+});
+
+// Play / stop original — plays the trimmed region so the comparison is apples-to-apples with what gets analyzed
+document.getElementById('playOrigBtn').addEventListener('click', () => {
+  if (!decodedBuffer) return;
+  const ac = getAC();
+  if (activeOrigSrc) { try { activeOrigSrc.stop(); } catch {} }
+  const { startSec, endSec } = getTrimRange();
+  const src = ac.createBufferSource(); src.buffer = decodedBuffer; src.connect(ac.destination);
+  src.start(0, startSec, Math.max(0.02, endSec - startSec));
+  activeOrigSrc = src;
+  document.getElementById('playOrigBtn').disabled = true; document.getElementById('stopOrigBtn').disabled = false;
+  src.onended = () => { document.getElementById('playOrigBtn').disabled = false; document.getElementById('stopOrigBtn').disabled = true; activeOrigSrc = null; };
+});
+document.getElementById('stopOrigBtn').addEventListener('click', () => { if (activeOrigSrc) { try { activeOrigSrc.stop(); } catch {} } });
+
+// Advanced settings collapsible
+document.getElementById('advHdr').addEventListener('click', () => {
+  const hdr = document.getElementById('advHdr'), body = document.getElementById('advBody');
+  const open = body.classList.contains('open');
+  body.classList.toggle('open', !open); hdr.classList.toggle('open', !open);
+});
+
+// Analyze
+document.getElementById('analyzeBtn').addEventListener('click', async () => {
+  if (!monoSamples) return;
+  document.getElementById('analyzeBtn').disabled = true;
+  document.getElementById('progWrap').style.display = 'block';
+  const trimmed = getTrimmedSamples();
+  const opts = {
+    capSeconds: +document.getElementById('capSeconds').value || 8,
+    forceFullLength: document.getElementById('forceFullLength').checked,
+    minFreq: +document.getElementById('minFreq').value || 70,
+    maxFreq: +document.getElementById('maxFreq').value || 1400,
+    voiceCount: +document.getElementById('voiceCount').value || 1,
+  };
+  try {
+    const { params, voices, meta } = await analyzeAudio(trimmed, sampleRate, opts, (msg, pct) => {
+      ss(msg, 'load');
+      document.getElementById('progBar').style.width = pct + '%';
+    });
+    populateFields(params);
+    renderVoicesTable(voices.slice(1)); // voice 1 lives in the classic fields; table shows the rest
+    document.getElementById('emptyHint').style.display = 'none';
+    document.getElementById('resultsWrap').style.display = 'flex';
+    rebuildJSON();
+
+    const confEl = document.getElementById('confidencePanel');
+    confEl.style.display = 'block';
+    const pct2 = Math.round(meta.tonalConfidence * 100);
+    const voiceNote = meta.voiceCount > 1 ? ` Extracted ${meta.voiceCount} simultaneous partials as ${meta.voiceCount} GRAB sound blocks.` : '';
+    if (meta.tonalConfidence > 0.55) {
+      confEl.className = 'status ok';
+      confEl.textContent = `✓ Tonal confidence ${pct2}% — a clear pitched tone was found.${voiceNote}`;
+    } else if (meta.tonalConfidence > 0.2) {
+      confEl.className = 'status load';
+      confEl.textContent = `~ Tonal confidence ${pct2}% — a rough primary pitch was found, but this sound isn't strongly single-toned.${voiceNote} The extra voices should help fill in what the primary tone alone misses.`;
+    } else {
+      confEl.className = 'status err';
+      confEl.textContent = `⚠ Tonal confidence ${pct2}% — no clear single pitch; this is noisy/percussive/complex.${voiceNote}${meta.voiceCount<=1?' Try raising Voice Count so more of the spectrum gets covered, or trim to a shorter punchier segment.':''}`;
+    }
+
+    ss(`✓ Analyzed ${meta.durationAnalyzed.toFixed(2)}s of ${meta.durationTotal.toFixed(2)}s total${meta.wasCapped ? ' (capped)' : ''} · ${meta.voiceCount} voice${meta.voiceCount!==1?'s':''}.`, 'ok');
+  } catch (err) {
+    console.error(err);
+    ss(`Analysis error: ${err.message}`, 'err');
+  } finally {
+    document.getElementById('analyzeBtn').disabled = false;
+    setTimeout(() => { document.getElementById('progWrap').style.display = 'none'; document.getElementById('progBar').style.width = '0%'; }, 600);
+  }
+});
+
+const PARAM_KEYS = ['volume','waveType','envelopeAttack','envelopeSustain','envelopeRelease','envelopePunch','frequencyBase','frequencyLimit','frequencyRamp','frequencyDeltaRamp','vibratoStrength','vibratoSpeed','pitchJumpMod','pitchJumpSpeed','dutyCycle','dutyCycleRamp','repeatSpeed','flangerFrequency','flangerDepth','lowPassFilterFrequency','highPassFilterFrequency','reverbDelay','reverbDecayFactor'];
+
+function populateFields(params) {
+  for (const k of PARAM_KEYS) { const el = document.getElementById('p_' + k); if (el) el.value = params[k]; }
+}
+function readFields() {
+  const p = {};
+  for (const k of PARAM_KEYS) { const el = document.getElementById('p_' + k); p[k] = k === 'waveType' ? parseInt(el.value, 10) : parseFloat(el.value); }
+  return p;
+}
+
+// init defaults so fields aren't blank pre-analysis
+populateFields({ volume:.8, waveType:3, envelopeAttack:.01, envelopeSustain:.10, envelopeRelease:.12, envelopePunch:0, frequencyBase:440, frequencyLimit:30, frequencyRamp:0, frequencyDeltaRamp:0, vibratoStrength:0, vibratoSpeed:0, pitchJumpMod:0, pitchJumpSpeed:0, dutyCycle:.5, dutyCycleRamp:0, repeatSpeed:0, flangerFrequency:0, flangerDepth:0, lowPassFilterFrequency:10000, highPassFilterFrequency:0, reverbDelay:0, reverbDecayFactor:0 });
+
+// ═══════════════════════════════════════════════
+//  VOICES TABLE (additive resynthesis UI)
+// ═══════════════════════════════════════════════
+function renderVoicesTable(extraVoices) {
+  const panel = document.getElementById('voicesPanel');
+  const body = document.getElementById('voicesTableBody');
+  if (!extraVoices || !extraVoices.length) { panel.style.display = 'none'; body.innerHTML = ''; return; }
+  panel.style.display = 'block';
+  body.innerHTML = '';
+  extraVoices.forEach((v, i) => {
+    const tr = document.createElement('tr');
+    tr.dataset.idx = i;
+    tr.innerHTML = `
+      <td><button class="voice-solo-btn" data-solo="${i}" title="Preview this voice alone">▶</button></td>
+      <td><span class="voice-role-partial">partial</span></td>
+      <td class="v-note">${noteNameFromFreq(v.freq)}</td>
+      <td><input type="number" class="v-freq" value="${Math.round(v.freq)}" step="1" min="1"/></td>
+      <td><input type="number" class="v-vol" value="${v.volume.toFixed(3)}" step="0.01" min="0" max="1"/></td>
+      <td><input type="number" class="v-atk" value="${v.envelopeAttack.toFixed(3)}" step="0.001" min="0"/></td>
+      <td><input type="number" class="v-sus" value="${v.envelopeSustain.toFixed(3)}" step="0.001" min="0"/></td>
+      <td><input type="number" class="v-rel" value="${v.envelopeRelease.toFixed(3)}" step="0.001" min="0"/></td>
+      <td><select class="v-wave"><option value="0" ${v.waveType===0?'selected':''}>Sine</option><option value="1" ${v.waveType===1?'selected':''}>Square</option><option value="2" ${v.waveType===2?'selected':''}>Tri</option><option value="3" ${v.waveType===3?'selected':''}>Saw</option></select></td>
+    `;
+    body.appendChild(tr);
+  });
+  body.querySelectorAll('.v-freq').forEach(el => el.addEventListener('input', function () {
+    const row = this.closest('tr'); row.querySelector('.v-note').textContent = noteNameFromFreq(+this.value);
+  }));
+  body.querySelectorAll('[data-solo]').forEach(btn => btn.addEventListener('click', function () {
+    const idx = +this.dataset.solo;
+    const rows = readVoiceRows();
+    const shared = readFields();
+    const soloVoice = { role: 'partial', ...rows[idx], frequencyRamp: 0, frequencyDeltaRamp: 0, vibratoStrength: 0, vibratoSpeed: 0, pitchJumpMod: 0, pitchJumpSpeed: 0, frequencyLimit: shared.frequencyLimit, dutyCycle: shared.dutyCycle, dutyCycleRamp: shared.dutyCycleRamp, repeatSpeed: shared.repeatSpeed, flangerFrequency: shared.flangerFrequency, flangerDepth: shared.flangerDepth, lowPassFilterFrequency: shared.lowPassFilterFrequency, highPassFilterFrequency: shared.highPassFilterFrequency, reverbDelay: shared.reverbDelay, reverbDecayFactor: shared.reverbDecayFactor };
+    previewVoices([soloVoice]);
+  }));
+}
+
+function readVoiceRows() {
+  const rows = [...document.querySelectorAll('#voicesTableBody tr')];
+  return rows.map(tr => ({
+    freq: +tr.querySelector('.v-freq').value || 440,
+    volume: +tr.querySelector('.v-vol').value || 0.3,
+    envelopeAttack: +tr.querySelector('.v-atk').value || 0.01,
+    envelopeSustain: +tr.querySelector('.v-sus').value || 0.05,
+    envelopeRelease: +tr.querySelector('.v-rel').value || 0.1,
+    envelopePunch: 0,
+    waveType: parseInt(tr.querySelector('.v-wave').value, 10),
+  }));
+}
+
+// Combines voice 1 (from the classic parameter fields) with any additional
+// voices from the additive-resynthesis table into one full voice list.
+function buildFullVoiceList() {
+  const f = readFields();
+  const voice1 = {
+    role: 'primary', freq: f.frequencyBase, volume: f.volume, waveType: f.waveType,
+    envelopeAttack: f.envelopeAttack, envelopeSustain: f.envelopeSustain, envelopeRelease: f.envelopeRelease, envelopePunch: f.envelopePunch,
+    frequencyLimit: f.frequencyLimit, frequencyRamp: f.frequencyRamp, frequencyDeltaRamp: f.frequencyDeltaRamp,
+    vibratoStrength: f.vibratoStrength, vibratoSpeed: f.vibratoSpeed, pitchJumpMod: f.pitchJumpMod, pitchJumpSpeed: f.pitchJumpSpeed,
+    dutyCycle: f.dutyCycle, dutyCycleRamp: f.dutyCycleRamp, repeatSpeed: f.repeatSpeed,
+    flangerFrequency: f.flangerFrequency, flangerDepth: f.flangerDepth,
+    lowPassFilterFrequency: f.lowPassFilterFrequency, highPassFilterFrequency: f.highPassFilterFrequency,
+    reverbDelay: f.reverbDelay, reverbDecayFactor: f.reverbDecayFactor,
+  };
+  const extras = readVoiceRows().map(r => ({
+    role: 'partial', ...r,
+    frequencyLimit: f.frequencyLimit, frequencyRamp: 0, frequencyDeltaRamp: 0,
+    vibratoStrength: 0, vibratoSpeed: 0, pitchJumpMod: 0, pitchJumpSpeed: 0,
+    dutyCycle: f.dutyCycle, dutyCycleRamp: f.dutyCycleRamp, repeatSpeed: f.repeatSpeed,
+    flangerFrequency: f.flangerFrequency, flangerDepth: f.flangerDepth,
+    lowPassFilterFrequency: f.lowPassFilterFrequency, highPassFilterFrequency: f.highPassFilterFrequency,
+    reverbDelay: f.reverbDelay, reverbDecayFactor: f.reverbDecayFactor,
+  }));
+  return [voice1, ...extras];
+}
+
+function rebuildJSON() {
+  const voices = buildFullVoiceList();
+  const opts = { title: document.getElementById('lvlTitle').value.trim() || `${currentFileName || 'sound'} By Bananamaster6`, creator: document.getElementById('lvlCreator').value.trim() || 'Bananamaster6', description: document.getElementById('lvlDesc').value.trim() || 'audio converted to grab sound settings' };
+  currentJson = buildSoundLevelJSON(voices, opts);
+  document.getElementById('jsonBox').value = JSON.stringify(currentJson, null, 2);
+  ['dlJsonBtn','dlLevelBtn','copyBtn'].forEach(id => document.getElementById(id).disabled = false);
+}
+document.getElementById('rebuildBtn').addEventListener('click', rebuildJSON);
+
+// Preview / stop preview — mixes down all current voices together
+document.getElementById('previewBtn').addEventListener('click', () => previewVoices(buildFullVoiceList()));
+document.getElementById('stopPreviewBtn').addEventListener('click', () => { if (activePreviewSrc) { try { activePreviewSrc.stop(); } catch {} } });
+
+// Downloads — keep JSON box as source of truth (bypass layer: user may have hand-edited it)
+function currentJsonText() { return document.getElementById('jsonBox').value; }
+function currentTitle() { try { return JSON.parse(currentJsonText()).title; } catch { return currentFileName || 'sound2grab'; } }
+function dlFile(content, filename, mime) {
+  const url = URL.createObjectURL(new Blob([content], { type: mime }));
+  Object.assign(document.createElement('a'), { href: url, download: filename }).click();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+document.getElementById('dlJsonBtn').addEventListener('click', () => dlFile(currentJsonText(), safeName(currentTitle()) + '.json', 'application/json'));
+document.getElementById('dlLevelBtn').addEventListener('click', () => dlFile(currentJsonText(), safeName(currentTitle()) + '.level', 'application/octet-stream'));
+document.getElementById('copyBtn').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(currentJsonText()); const b = document.getElementById('copyBtn'); b.textContent = '✓ Copied!'; setTimeout(() => b.textContent = '⎘ Copy', 1800); }
+  catch { alert('Copy failed — use Download instead.'); }
+});
+
+window.addEventListener('resize', () => { if (monoSamples) drawWaveform(monoSamples, getTrimRange()); });
+</script>
+</body>
+</html>
